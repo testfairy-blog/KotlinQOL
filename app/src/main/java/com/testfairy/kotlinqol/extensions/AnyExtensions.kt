@@ -178,11 +178,3 @@ fun Any?.LogI(msg: String, e: Throwable) {
         Log.d("Unexpected Null", "error: ", NullPointerException())
     }
 }
-
-inline fun <T, R> T?.let(_then: (T)->R?, _else: ()->R?): R? {
-    if (this != null) {
-        return _then.invoke(this)
-    } else {
-        return _else.invoke()
-    }
-}
