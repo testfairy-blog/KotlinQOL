@@ -1,3 +1,5 @@
+//  Created by Diego Perini, TestFairy
+//  License: Public Domain
 package com.testfairy.kotlinqol
 
 import android.support.v7.app.AppCompatActivity

@@ -4,6 +4,7 @@ package com.testfairy.kotlinqol.extensions
 
 import android.util.Log
 
+
 fun notNull(vararg os: Any?): Boolean {
     var result = true
 

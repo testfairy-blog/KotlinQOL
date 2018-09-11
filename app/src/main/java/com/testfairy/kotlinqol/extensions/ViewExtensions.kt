@@ -1,3 +1,5 @@
+//  Created by Diego Perini, TestFairy
+//  License: Public Domain
 package com.testfairy.kotlinqol.extensions
 
 import android.graphics.drawable.Drawable
