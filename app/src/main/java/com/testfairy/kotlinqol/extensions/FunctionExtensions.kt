@@ -2,156 +2,203 @@
 //  License: Public Domain
 package com.testfairy.kotlinqol.extensions
 
+import android.os.AsyncTask
 import android.util.Log
 
-
-interface AsyncLoopPredicate {
-    fun isReadyToProceed(): Boolean?
-}
-
-interface AsyncLoop : Runnable {
+interface ScheduledJob {
     fun cancel()
 }
 
+interface RunnableScheduledJob: ScheduledJob, Runnable {}
+
 typealias Lambda = ()->Unit
+typealias Predicate = ()->Boolean
 
 @JvmOverloads
-fun Lambda.runWithPeriod(period: Long = 1000, onCancel: () -> Unit = {}): AsyncLoop {
+fun Lambda.runWithPeriod(period: Long = 1000, onCancel: () -> Unit = {}): ScheduledJob {
     val observer = android.os.Handler()
     val self = this
 
-    val observeAction = object : AsyncLoop {
+    val job = object : ScheduledJob, Runnable {
         private var canceled = false
 
         override fun run() {
-            if (canceled) return
-            self()
-            observer.postDelayed(this, period)
+            synchronized(this) {
+                if (canceled) return
+                self()
+                observer.postDelayed(this, period)
+            }
         }
 
         override fun cancel() {
-            canceled = true
-            onCancel()
+            synchronized(this) {
+                canceled = true
+                observer.post(onCancel)
+            }
         }
     }
 
-    observer.post(observeAction)
+    observer.post(job)
 
-    return observeAction
+    return job
 }
 
 @JvmOverloads
-fun Lambda.runWithDelay(delay: Long = 1000): AsyncLoop {
+fun Lambda.runWithDelay(delay: Long = 1000, onCancel: () -> Unit = {}): RunnableScheduledJob {
     val observer = android.os.Handler()
     val self = this
 
-    val observeAction = object : AsyncLoop {
+    val job = object : RunnableScheduledJob {
         private var canceled = false
+        private var done = false
 
         override fun run() {
-            if (canceled) return
+            synchronized(this) {
+                if (canceled || done) return
 
-            self()
+                done = true
+                self()
+            }
         }
 
         override fun cancel() {
-            canceled = true
+            synchronized(this) {
+                canceled = true
+                observer.post(onCancel)
+            }
         }
     }
 
-    observer.postDelayed(observeAction, delay)
+    observer.postDelayed(job, delay)
 
-    return observeAction
+    return job
 }
 
 @JvmOverloads
-fun Lambda.observeOnce(predicate: AsyncLoopPredicate, checkPeriod: Long = 40, timeout: Long = 1000): AsyncLoop {
+fun Lambda.observeOnce(predicate: Predicate, checkPeriod: Long = 40, timeout: Long = 1000): RunnableScheduledJob {
     val observer = android.os.Handler()
     val self = this
 
     // Enable this to detect neverending observers
     //        final Exception e = new RuntimeException("WTF");
 
-    val observeAction = object : AsyncLoop {
+    val job = object : RunnableScheduledJob {
         private var canceled = false
+        private var done = false
         private var timeElapsed = 0
 
         override fun run() {
-            if (timeElapsed + checkPeriod > timeout) cancel()
-            timeElapsed += 40
+            synchronized(this) {
+                if (timeElapsed + checkPeriod > timeout) cancel()
+                timeElapsed += 40
 
-            if (canceled) return
+                if (canceled) return
 
-            var readyToProceed: Boolean? = null
-            try {
-                readyToProceed = predicate.isReadyToProceed()
-            } catch (e: Exception) {
-                Log.v("Util", "Observing", e)
-                observer.postDelayed(this, checkPeriod)
-                return
-            }
+                var readyToProceed: Boolean? = null
+                try {
+                    readyToProceed = predicate()
+                } catch (e: Exception) {
+                    Log.v("Util", "Observing", e)
+                    observer.postDelayed(this, checkPeriod)
+                    return
+                }
 
-            if (readyToProceed != null && readyToProceed) {
-                Log.v("Util", "Observed")
-                self()
-            } else {
-                // Enable this to detect neverending observers
-                //                    Log.v("Util", "Observing", e);
-                Log.v("Util", "Observing")
-                observer.postDelayed(this, checkPeriod)
+                if (readyToProceed && !done) {
+                    Log.v("Util", "Observed")
+                    done = true
+                    self()
+                } else if (!done) {
+                    // Enable this to detect neverending observers
+                    //                    Log.v("Util", "Observing", e);
+                    Log.v("Util", "Observing")
+                    observer.postDelayed(this, checkPeriod)
+                }
             }
         }
 
         override fun cancel() {
-            canceled = true
+            synchronized(this) {
+                canceled = true
+            }
         }
     }
 
-    observer.post(observeAction)
+    observer.post(job)
 
-    return observeAction
+    return job
 }
 
 @JvmOverloads
-fun Lambda.observe(predicate: AsyncLoopPredicate, checkPeriod: Long = 40, timeout: Long = 1000): AsyncLoop {
+fun Lambda.observe(predicate: Predicate, checkPeriod: Long = 40, timeout: Long = 1000): ScheduledJob {
     val observer = android.os.Handler()
     val self = this
 
-    val observeAction = object : AsyncLoop {
+    val job = object : RunnableScheduledJob {
         private var canceled = false
         private var timeElapsed = 0L
 
         override fun run() {
-            if (timeElapsed + checkPeriod > timeout) cancel()
-            timeElapsed += checkPeriod
+            synchronized(this) {
+                if (timeElapsed + checkPeriod > timeout) cancel()
+                timeElapsed += checkPeriod
 
-            if (canceled) return
+                if (canceled) return
 
-            var readyToProceed: Boolean? = null
-            try {
-                readyToProceed = predicate.isReadyToProceed()
-            } catch (e: Exception) {
-                Log.v("Util", "Observing");
-                observer.postDelayed(this, checkPeriod)
-                return
-            }
+                var readyToProceed: Boolean? = null
+                try {
+                    readyToProceed = predicate()
+                } catch (e: Exception) {
+                    Log.v("Util", "Observing");
+                    observer.postDelayed(this, checkPeriod)
+                    return
+                }
 
-            if (readyToProceed != null && readyToProceed) {
-                Log.v("Util", "Observed");
-                self()
-                observer.postDelayed(this, checkPeriod)
-            } else {
-                Log.v("Util", "Observing");
-                observer.postDelayed(this, checkPeriod)
+                if (readyToProceed) {
+                    Log.v("Util", "Observed");
+                    self()
+                    observer.postDelayed(this, checkPeriod)
+                } else {
+                    Log.v("Util", "Observing");
+                    observer.postDelayed(this, checkPeriod)
+                }
             }
         }
 
         override fun cancel() {
-            canceled = true
+            synchronized(this) {
+                canceled = true
+            }
         }
     }
 
-    observer.post(observeAction)
+    observer.post(job)
 
-    return observeAction
+    return job
+}
+
+fun Lambda.invokeInBackground(): RunnableScheduledJob {
+    val self = this
+    val job = object : RunnableScheduledJob {
+        private var canceled = false
+        private var done = false
+
+        override fun run() {
+            synchronized(this) {
+                if (canceled || done) return
+
+                done = true
+                self()
+            }
+        }
+
+        override fun cancel() {
+            synchronized(this) {
+                canceled = true
+            }
+        }
+    }
+
+    AsyncTask.execute(job)
+
+    return job
 }

@@ -97,36 +97,37 @@ class MainActivity : AppCompatActivity() {
     fun test_FunctionExtensions() {
         val random  = Random()
 
-        // This function will be called every 1 second until it is canceled
+        // This function will be called every 1 second until it is canceled.
         val repeatingJob = {
-            "Hello World always".LogD()
+            "Hello World always.".LogD()
         }.runWithPeriod(1000)
 //        repeatingJob.cancel()
 
-        // This function will be called after 5 seconds passes if remains uncanceled
+        // This function will be called after 5 seconds passes if remains uncanceled.
         val oneTimeJob = {
-            "Hellow World with delay".LogD()
+            "Hello World with delay.".LogD()
         }.runWithDelay(5000)
 //        oneTimeJob.cancel()
 
-        // This function will be called every 40 miliseconds if and only if the predicate is true
+        // This function will be called every 40 miliseconds if and only if the predicate is true.
         val repeatedCheck = {
-            "Sometimes I win!".LogD()
-        }.observe(object : AsyncLoopPredicate {
-            override fun isReadyToProceed(): Boolean? {
-                return random.nextBoolean()
-            }
+            "Sometimes I win randomly!".LogD()
+        }.observe({
+            random.nextBoolean()
         })
 //        repeatedCheck.cancel()
 
-        // This function will be called only once and only when the first time predicate returns true
+        // This function will be called only once and only when the first time predicate returns true.
         val onceCheck = {
-            "When I win, it ends!".LogD()
-        }.observeOnce(object : AsyncLoopPredicate {
-            override fun isReadyToProceed(): Boolean? {
-                return random.nextBoolean()
-            }
+            "When I win, it ends! But I don't know when since it's random.".LogD()
+        }.observeOnce({
+            random.nextBoolean()
         })
 //        onceCheck.cancel()
+
+        // This function will be called in another thread to avoid locking the UI.
+        ({
+            "Hello in another thread!".LogD()
+        }).invokeInBackground()
     }
 }
