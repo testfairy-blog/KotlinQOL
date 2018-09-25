@@ -108,8 +108,6 @@ fun Lambda.observeOnce(predicate: Predicate, checkPeriod: Long = 40, timeout: Lo
                     done = true
                     self()
                 } else if (!done) {
-                    // Enable this to detect neverending observers
-                    //                    Log.v("Util", "Observing", e);
                     Log.v("Util", "Observing")
                     observer.postDelayed(this, checkPeriod)
                 }
